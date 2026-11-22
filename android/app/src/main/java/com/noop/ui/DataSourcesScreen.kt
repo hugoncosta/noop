@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FileDownload
@@ -151,6 +154,11 @@ fun DataSourcesScreen(vm: AppViewModel) {
     // export so each card reflects its own data rather than both showing under Apple Health (issue #34).
     var hcDays by remember { mutableStateOf<Int?>(null) }
     var hcWorkouts by remember { mutableStateOf<Int?>(null) }
+    // Phone step counting (opt-in, default OFF): the phone's own hardware counter sampled every 15 min.
+    var phoneStepsEnabled by remember { mutableStateOf(com.noop.data.PhoneStepPrefs.enabled(context)) }
+    var phoneStepsWriteHc by remember { mutableStateOf(com.noop.data.PhoneStepPrefs.writeToHealthConnect(context)) }
+    var phoneStepsDays by remember { mutableStateOf<Int?>(null) }
+    var phoneStepsShowHcWarning by remember { mutableStateOf(false) }
     // Nutrition CSV writes long-format metricSeries rows under its own source ("nutrition-csv"),
     // so its card counts days-with-calories and weigh-ins straight off that table.
     var nutritionDays by remember { mutableStateOf<Int?>(null) }
@@ -181,6 +189,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
         appleDays = vm.repo.appleDailyCount("apple-health", "0000-01-01", "9999-12-31")
         appleWorkouts = vm.repo.workoutsCount("apple-health", 0L, nowS)
         hcDays = vm.repo.appleDailyCount("health-connect", "0000-01-01", "9999-12-31")
+        phoneStepsDays = vm.repo.appleDailyCount(com.noop.data.WhoopRepository.PHONE_STEPS_SOURCE, "0000-01-01", "9999-12-31")
         hcWorkouts = vm.repo.workoutsCount("health-connect", 0L, nowS)
         nutritionDays = vm.repo.metricSeriesKeyCount(NutritionCsvImporter.SOURCE_ID, "calories_in")
         nutritionWeighIns = vm.repo.metricSeriesKeyCount(NutritionCsvImporter.SOURCE_ID, "weight")
@@ -371,6 +380,46 @@ fun DataSourcesScreen(vm: AppViewModel) {
      * regression keeping VO2 max out of the gate avoids. Either way we mark it asked, so a "no" is
      * respected instead of re-prompted on every sync.
      */
+    // Phone step counting: runtime permission for ACTIVITY_RECOGNITION (Android 10+). On older APIs the
+    // sensor needs no permission, so this launcher is only exercised on API 29+.
+    val phoneStepPermissionLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            // Warn before enabling when Health Connect already carries recent steps: enabling would
+            // double-count the days HC already covered.
+            scope.launch {
+                val hasRecent = com.noop.ingest.PhoneStepHcOverlap.hasRecentSteps(context)
+                if (hasRecent) {
+                    phoneStepsShowHcWarning = true
+                } else {
+                    com.noop.data.PhoneStepPrefs.setEnabled(context, true)
+                    com.noop.ingest.PhoneStepWorker.ensureScheduled(context)
+                    scope.launch { com.noop.ingest.PhoneStepRecorder.record(context, vm.repo) }
+                    phoneStepsEnabled = true
+                }
+            }
+        } else {
+            phoneStepsEnabled = false
+            Toast.makeText(context, "Activity recognition permission not granted.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Optional echo into Health Connect: WRITE_STEPS, requested only when the user opts in.
+    val phoneStepHcWritePermissionLauncher = rememberLauncherForActivityResult(
+        PermissionController.createRequestPermissionResultContract(),
+    ) { granted ->
+        if (granted.contains(com.noop.ingest.HealthConnectWriter.STEPS_WRITE_PERMISSION)) {
+            phoneStepsWriteHc = true
+            com.noop.data.PhoneStepPrefs.setWriteToHealthConnect(context, true)
+            Toast.makeText(context, "Phone steps will also be written to Health Connect.", Toast.LENGTH_SHORT).show()
+        } else {
+            phoneStepsWriteHc = false
+            com.noop.data.PhoneStepPrefs.setWriteToHealthConnect(context, false)
+            Toast.makeText(context, "Health Connect write access not granted.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     val hcVo2MaxPermissionLauncher = rememberLauncherForActivityResult(
         PermissionController.createRequestPermissionResultContract(),
     ) { _ ->
@@ -643,6 +692,178 @@ fun DataSourcesScreen(vm: AppViewModel) {
                 }
             } else {
                 RoadmapNote("Health Connect isn't set up on this device. Install it from Google Play, then return here to import.")
+            }
+        }
+        }
+
+        // --- This phone (step counting, opt-in) ---
+        item {
+        SourceCard(
+            title = uiString(R.string.l10n_data_sources_screen_this_phone_steps_c134af5d),
+            icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+            subtitle = "Count steps from this phone's own hardware counter. For WHOOP 4.0 straps, " +
+                "which do not send a step count over Bluetooth, so NOOP would otherwise have no step " +
+                "history at all. Opt-in, sampled every 15 minutes, stays on this phone.",
+        ) {
+            val available = com.noop.ingest.PhoneStepCounter.isAvailable(context)
+            if (!available) {
+                RoadmapNote("This phone has no step-counter sensor, so there is nothing to count.")
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            uiString(R.string.l10n_data_sources_screen_count_steps_with_this_phone_652ac936),
+                            style = NoopType.subhead,
+                            color = Palette.textPrimary,
+                        )
+                        Text(
+                            uiString(R.string.l10n_data_sources_screen_uses_the_phone_s_hardware_counter_off_7a623007),
+                            style = NoopType.footnote,
+                            color = Palette.textTertiary,
+                        )
+                    }
+                    Switch(
+                        checked = phoneStepsEnabled,
+                        onCheckedChange = { on ->
+                            if (on) {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
+                                    !com.noop.ingest.PhoneStepCounter.hasPermission(context)
+                                ) {
+                                    phoneStepPermissionLauncher.launch(android.Manifest.permission.ACTIVITY_RECOGNITION)
+                                } else {
+                                    scope.launch {
+                                        val hasRecent = com.noop.ingest.PhoneStepHcOverlap.hasRecentSteps(context)
+                                        if (hasRecent) {
+                                            phoneStepsShowHcWarning = true
+                                        } else {
+                                            com.noop.data.PhoneStepPrefs.setEnabled(context, true)
+                                            com.noop.ingest.PhoneStepWorker.ensureScheduled(context)
+                                            com.noop.ingest.PhoneStepRecorder.record(context, vm.repo)
+                                            phoneStepsEnabled = true
+                                            refreshCounts()
+                                        }
+                                    }
+                                }
+                            } else {
+                                com.noop.data.PhoneStepPrefs.setEnabled(context, false)
+                                com.noop.ingest.PhoneStepWorker.cancel(context)
+                                phoneStepsEnabled = false
+                                phoneStepsWriteHc = false
+                                com.noop.data.PhoneStepPrefs.setWriteToHealthConnect(context, false)
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                    )
+                }
+                if (phoneStepsShowHcWarning) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        uiString(R.string.l10n_data_sources_screen_health_connect_already_has_step_data_4c69bf2f),
+                        style = NoopType.footnote,
+                        color = Palette.textSecondary,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        BackupButton(
+                            label = uiString(R.string.l10n_data_sources_screen_enable_anyway_21e28a84),
+                            icon = Icons.Filled.Check,
+                            enabled = true,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            com.noop.data.PhoneStepPrefs.setEnabled(context, true)
+                            com.noop.ingest.PhoneStepWorker.ensureScheduled(context)
+                            scope.launch { com.noop.ingest.PhoneStepRecorder.record(context, vm.repo) }
+                            phoneStepsEnabled = true
+                            phoneStepsShowHcWarning = false
+                            scope.launch { refreshCounts() }
+                        }
+                        BackupButton(
+                            label = uiString(R.string.l10n_data_sources_screen_cancel_77dfd213),
+                            icon = Icons.Filled.Close,
+                            enabled = true,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            phoneStepsShowHcWarning = false
+                            phoneStepsEnabled = false
+                        }
+                    }
+                }
+                if (phoneStepsEnabled) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                uiString(R.string.l10n_data_sources_screen_also_write_steps_to_health_connect_2f5433f1),
+                                style = NoopType.subhead,
+                                color = Palette.textPrimary,
+                            )
+                            Text(
+                                uiString(R.string.l10n_data_sources_screen_so_other_apps_can_see_them_off_by_f111fff5),
+                                style = NoopType.footnote,
+                                color = Palette.textTertiary,
+                            )
+                        }
+                        Switch(
+                            checked = phoneStepsWriteHc,
+                            onCheckedChange = { on ->
+                                if (!on) {
+                                    phoneStepsWriteHc = false
+                                    com.noop.data.PhoneStepPrefs.setWriteToHealthConnect(context, false)
+                                } else {
+                                    scope.launch {
+                                        if (HealthConnectImporter.sdkStatus(context) !=
+                                            HealthConnectClient.SDK_AVAILABLE
+                                        ) {
+                                            Toast.makeText(
+                                                context,
+                                                "Health Connect isn't available on this device.",
+                                                Toast.LENGTH_LONG,
+                                            ).show()
+                                            return@launch
+                                        }
+                                        val granted = runCatching {
+                                            HealthConnectImporter.client(context)
+                                                .permissionController.getGrantedPermissions()
+                                        }.getOrDefault(emptySet())
+                                        val permission = com.noop.ingest.HealthConnectWriter.STEPS_WRITE_PERMISSION
+                                        if (permission in granted) {
+                                            phoneStepsWriteHc = true
+                                            com.noop.data.PhoneStepPrefs.setWriteToHealthConnect(context, true)
+                                        } else {
+                                            phoneStepHcWritePermissionLauncher.launch(setOf(permission))
+                                        }
+                                    }
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Palette.surfaceBase,
+                                checkedTrackColor = Palette.accent,
+                                uncheckedThumbColor = Palette.textSecondary,
+                                uncheckedTrackColor = Palette.surfaceInset,
+                                uncheckedBorderColor = Palette.hairline,
+                            ),
+                        )
+                    }
+                    phoneStepsDays?.let { days ->
+                        CountLine(primary = "$days days counted", secondary = "Updated by the 15-minute worker")
+                    }
+                }
             }
         }
         }

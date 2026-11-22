@@ -14,6 +14,7 @@ import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RespiratoryRateRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
+import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
 import com.noop.data.MetricSeriesRow
 import androidx.health.connect.client.records.metadata.Metadata
@@ -171,10 +172,15 @@ object HealthConnectWriter {
         }
 
         // NOTE: steps + active-calories are deliberately NOT written back (was #528). NOOP's strap
-        // step/kcal figures are estimates, and the phone pedometer / a watch already feed Health
-        // Connect the authoritative values — writing ours too would double-count in the OS's daily
-        // totals. iOS (#249) excludes them for the same reason; this keeps the two platforms aligned.
+        // step/kcal figures are estimates, and a phone pedometer / a watch feed Health Connect the
+        // authoritative values — writing ours too would double-count in the OS's daily totals. iOS (#249)
+        // excludes them for the same reason; this keeps the two platforms aligned.
         // The unique strap signals (vitals, HR, sleep, workouts) are still written below.
+        //
+        // The exclusion is about the ESTIMATE, not about steps as a type. On Android the "phone pedometer
+        // feeds Health Connect" premise is only true when some other app does it, which is exactly the
+        // gap the opt-in phone counter fills: when the user turns the echo on, [writePhoneStepDay] writes
+        // the MEASURED count from the phone's own hardware counter, separately from this batch.
 
         // Each export concern inserts independently so a failure in one — e.g. a revoked per-type WRITE
         // permission — can't suppress the others. Failures are CATEGORIZED (PII-safe, never raw messages)
@@ -422,8 +428,61 @@ object HealthConnectWriter {
         )
     }
 
-    // --- Workout (ExerciseSession) writeback (GPS workouts, v1.71) ---
+    /**
+     * Write permission for phone-counted steps. Deliberately NOT in [WRITE_RECORDS]: that set is
+     * requested as one bundle, and adding steps to it would make an unrelated permission choice gate the
+     * vitals writeback. The phone-step echo asks for this one alone.
+     */
+    val STEPS_WRITE_PERMISSION: String = HealthPermission.getWritePermission(StepsRecord::class)
 
+    /**
+     * Echo ONE local day's phone-counted steps into Health Connect (opt-in; see
+     * [com.noop.data.PhoneStepPrefs.writeToHealthConnect]).
+     *
+     * The [total] is the day's running count, not a delta, and the record is keyed by the day in its
+     * `clientRecordId` so Health Connect REPLACES it as the day climbs. Writing deltas instead would make
+     * every sample overwrite the previous sample's steps and the day would end at whatever the last
+     * interval happened to be.
+     *
+     * This is the MEASURED count from the phone's own hardware counter, which is why it is allowed to be
+     * written while the strap's step ESTIMATE is not: the exclusion at the top of [writeLocked] exists to
+     * keep NOOP's estimate from competing with an authoritative producer, and here NOOP is that producer
+     * rather than a second opinion. An install without the toggle writes nothing.
+     *
+     * Never throws. Returns false when steps aren't granted, Health Connect is unavailable, or the insert
+     * failed - the caller has already banked the count locally, so this is a best-effort echo.
+     */
+    suspend fun writePhoneStepDay(context: Context, dayStartTs: Long, total: Int): Boolean {
+        if (total <= 0) return false
+        if (HealthConnectClient.getSdkStatus(context) != HealthConnectClient.SDK_AVAILABLE) return false
+        return runCatching {
+            val client = HealthConnectClient.getOrCreate(context)
+            if (STEPS_WRITE_PERMISSION !in client.permissionController.getGrantedPermissions()) {
+                return@runCatching false
+            }
+            val zone = ZoneId.systemDefault()
+            val start = Instant.ofEpochSecond(dayStartTs)
+            val end = start.plusSeconds(86_400L)
+            client.insertRecords(
+                listOf(
+                    StepsRecord(
+                        startTime = start,
+                        startZoneOffset = zone.rules.getOffset(start),
+                        endTime = end,
+                        endZoneOffset = zone.rules.getOffset(end),
+                        count = total.toLong(),
+                        metadata = Metadata(
+                            clientRecordId = "noop-phone-steps-$dayStartTs",
+                            clientRecordVersion = System.currentTimeMillis() / 1000,
+                        ),
+                    ),
+                ),
+            )
+            true
+        }.getOrDefault(false)
+    }
+
+    // --- Workout (ExerciseSession) writeback (GPS workouts, v1.71) ---
     /**
      * Write permission for VO2 max (#1525). Deliberately NOT in [WRITE_RECORDS]: that set feeds both the
      * daily batch and the UI's `containsAll` gate, so adding it there would re-prompt every existing user

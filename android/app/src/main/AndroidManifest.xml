@@ -93,6 +93,11 @@
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
 
+    <!-- Phone step counting (opt-in, default OFF): ACTIVITY_RECOGNITION is a runtime permission from
+         Android 10 (API 29) that gates the hardware step counter; on API 26-28 the sensor needs none.
+         Never requested unless the user turns the feature on. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
     <!-- Health Connect (optional): read-only access to the user's own health data so it can
          be imported on-device. Nothing is uploaded. Granted at runtime, revocable any time. -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
@@ -111,12 +116,16 @@
     <uses-permission android:name="android.permission.health.WRITE_HEART_RATE_VARIABILITY" />
     <uses-permission android:name="android.permission.health.WRITE_OXYGEN_SATURATION" />
     <uses-permission android:name="android.permission.health.WRITE_RESPIRATORY_RATE" />
-    <!-- HR samples and sleep writeback (#528, opt-in, default OFF). Steps + active-calories are
-         deliberately NOT written back (they'd double-count the phone/watch's authoritative totals — see
-         HealthConnectWriter.kt; iOS #249 aligns), so their WRITE permissions are intentionally NOT
-         declared here — the writer's WRITE_RECORDS set never requests them (#659). -->
+    <!-- HR samples and sleep writeback (#528, opt-in, default OFF). The strap's step/kcal figures are
+         ESTIMATES and stay out of WRITE_RECORDS (they'd double-count the phone/watch's authoritative
+         totals — see HealthConnectWriter.kt; iOS #249 aligns), so those WRITE permissions are
+         intentionally NOT declared here (#659). -->
     <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" />
     <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
+    <!-- Phone-counted steps echo (opt-in, default OFF): the MEASURED count from the phone's own hardware
+         counter (HealthConnectWriter.writePhoneStepDay), never the strap's estimate. Requested on its
+         own, so this permission choice never gates the vitals writeback. -->
+    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
     <!-- Exercise-session + distance writeback (GPS workouts, opt-in). MUST be declared or Health
          Connect silently drops the runtime request and live workouts never write back (#412). -->
     <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />

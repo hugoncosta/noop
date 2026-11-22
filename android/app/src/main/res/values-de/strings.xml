@@ -2873,4 +2873,11 @@
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
     <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today nach Ihren Wünschen, Herzfrequenz für jede App und Italienisch</string>
+    <string name="l10n_data_sources_screen_this_phone_steps_c134af5d">Dieses Telefon — Schritte</string>
+    <string name="l10n_data_sources_screen_count_steps_with_this_phone_652ac936">Schritte mit diesem Telefon zählen</string>
+    <string name="l10n_data_sources_screen_uses_the_phone_s_hardware_counter_off_7a623007">Nutzt den Hardware-Schrittzähler des Telefons. Standardmäßig aus; nichts verlässt das Gerät.</string>
+    <string name="l10n_data_sources_screen_health_connect_already_has_step_data_4c69bf2f">Health Connect enthält bereits Schrittdaten für die letzten Tage. Das Aktivieren kann diese Tage doppelt zählen (die Heute-Kachel nimmt den größeren der beiden Werte, bläht also nichts auf, aber beide Quellen zählen weiter).</string>
+    <string name="l10n_data_sources_screen_enable_anyway_21e28a84">Trotzdem aktivieren</string>
+    <string name="l10n_data_sources_screen_also_write_steps_to_health_connect_2f5433f1">Schritte auch in Health Connect schreiben</string>
+    <string name="l10n_data_sources_screen_so_other_apps_can_see_them_off_by_f111fff5">Damit andere Apps sie sehen. Standardmäßig aus; NOOP liest seine eigenen Schreibvorgänge nie zurück. Wenn eine andere App bereits Schritte in Health Connect schreibt, erscheinen dort beide Zählungen.</string>
 </resources>

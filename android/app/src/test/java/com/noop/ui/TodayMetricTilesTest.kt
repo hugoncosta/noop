@@ -113,7 +113,7 @@ class TodayMetricTilesTest {
     @Test
     fun stepsForDay_nullWhenNeitherSourceCoversTheDay() {
         val apple = listOf(stepsDay("apple-health", "2026-01-01", 8000))
-        assertNull(stepsForDay(apple, emptyList(), "2026-01-02"))
+        assertNull(stepsForDay(apple, emptyList(), emptyList(), "2026-01-02"))
     }
 
     @Test
@@ -122,14 +122,14 @@ class TodayMetricTilesTest {
             stepsDay("apple-health", "2026-01-01", 8000),
             stepsDay("apple-health", "2026-01-02", 11200),
         )
-        assertEquals(11200, stepsForDay(apple, emptyList(), "2026-01-02"))
+        assertEquals(11200, stepsForDay(apple, emptyList(), emptyList(), "2026-01-02"))
     }
 
     @Test
     fun stepsForDay_ignoresNullStepRowsForTheDay() {
         // A row exists for the day but carries no step count → treated as absent, not zero.
         val apple = listOf(stepsDay("apple-health", "2026-01-03", null))
-        assertNull(stepsForDay(apple, emptyList(), "2026-01-03"))
+        assertNull(stepsForDay(apple, emptyList(), emptyList(), "2026-01-03"))
     }
 
     @Test
@@ -138,7 +138,7 @@ class TodayMetricTilesTest {
         // rather than summing, so we never double-count overlapping sources.
         val apple = listOf(stepsDay("apple-health", "2026-01-04", 6000))
         val hc = listOf(stepsDay("health-connect", "2026-01-04", 9500))
-        assertEquals(9500, stepsForDay(apple, hc, "2026-01-04"))
+        assertEquals(9500, stepsForDay(apple, hc, emptyList(), "2026-01-04"))
     }
 
     // MARK: buildingHint — the unscored Effort/Rest "it's coming" caption, today-only (#527)

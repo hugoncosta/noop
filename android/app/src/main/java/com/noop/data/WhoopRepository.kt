@@ -2615,6 +2615,21 @@ class WhoopRepository(
         const val ACTIVITY_FILE_SOURCE = "activity-file"
 
         /**
+         * Steps counted by THIS PHONE's own hardware counter (opt-in; see
+         * [com.noop.ingest.PhoneStepRecorder]). A distinct source rather than a write into
+         * "health-connect", because the two are different claims: one says an app banked these steps,
+         * the other says this phone measured them. Keeping them apart is what lets the de-overlap rule
+         * (max across sources, #589) work instead of double-counting, and what lets the UI say where the
+         * number came from.
+         *
+         * Android-only. It is deliberately NOT added to [sourceCandidates]: the step reads that consume
+         * it ([com.noop.ui.stepsForDay], the calibration reference union) read the `appleDaily` table
+         * directly by source id, so threading a new candidate through the shared resolver would change a
+         * contract that has a Swift twin for no gain.
+         */
+        const val PHONE_STEPS_SOURCE = "phone-steps"
+
+        /**
          * The IMPORTED daily-source ids to read for an [activeDeviceId]: the UNION of the active strap id
          * AND the canonical legacy "my-whoop", active FIRST (so a per-day pick takes the active/live row).
          * SPINE / #814 + HIGH-2. A re-added strap writes live data under its fresh id while the WHOOP-export

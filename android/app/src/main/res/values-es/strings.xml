@@ -2860,4 +2860,11 @@
     <string name="raw_diag_ecg_probe_running">Puede que siga activa una captura en esta correa. El veredicto se registra en el strap log.</string>
     <string name="today_customize_live_session_availability">Aparece hoy si Live Sessions está activado en Ajustes o hay una sesión activa.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Hoy a tu manera, frecuencia cardíaca para cualquier aplicación e italiano</string>
+    <string name="l10n_data_sources_screen_this_phone_steps_c134af5d">Este teléfono — pasos</string>
+    <string name="l10n_data_sources_screen_count_steps_with_this_phone_652ac936">Cuenta pasos con este teléfono</string>
+    <string name="l10n_data_sources_screen_uses_the_phone_s_hardware_counter_off_7a623007">Usa el contador de hardware del teléfono. Desactivado por defecto; nada sale del dispositivo.</string>
+    <string name="l10n_data_sources_screen_health_connect_already_has_step_data_4c69bf2f">Health Connect ya tiene datos de pasos de los últimos días. Activarlo puede duplicar esos días (el mosaico de Hoy toma el mayor de los dos, así que no se infla, pero ambas fuentes seguirán contando).</string>
+    <string name="l10n_data_sources_screen_enable_anyway_21e28a84">Activar de todos modos</string>
+    <string name="l10n_data_sources_screen_also_write_steps_to_health_connect_2f5433f1">Escribir también los pasos en Health Connect</string>
+    <string name="l10n_data_sources_screen_so_other_apps_can_see_them_off_by_f111fff5">Para que otras apps puedan verlos. Desactivado por defecto; NOOP nunca vuelve a leer lo que escribe. Si otra app ya escribe pasos en Health Connect, allí aparecerán ambas cifras.</string>
 </resources>

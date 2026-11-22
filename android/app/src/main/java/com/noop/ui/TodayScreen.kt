@@ -904,6 +904,7 @@ fun TodayScreen(
         importedStepsForDay = stepsForDay(
             viewModel.repo.appleDaily("apple-health", "0000-01-01", "9999-12-31"),
             viewModel.repo.appleDaily("health-connect", "0000-01-01", "9999-12-31"),
+            viewModel.repo.appleDaily(com.noop.data.WhoopRepository.PHONE_STEPS_SOURCE, "0000-01-01", "9999-12-31"),
             selectedDayKey,
         )
     }

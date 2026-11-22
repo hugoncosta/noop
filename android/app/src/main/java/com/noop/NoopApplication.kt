@@ -59,6 +59,11 @@ class NoopApplication : Application() {
         // case it exists for is a strap that stopped talking. Scheduled here rather than beside a widget
         // so it does not inherit that widget's lifecycle. KEEP, so this is a no-op once scheduled.
         com.noop.notif.StaleBatteryWorker.ensureScheduled(this)
+        // Opt-in phone step counting (#phone-steps). Scheduled only when the user has turned it on; KEEP,
+        // so a re-launch never restarts the 15-minute period. No-op when disabled.
+        if (com.noop.data.PhoneStepPrefs.enabled(this)) {
+            com.noop.ingest.PhoneStepWorker.ensureScheduled(this)
+        }
     }
 
     /** Process-wide Room-backed store. One instance shared by the UI and the background service. */
